@@ -1,0 +1,248 @@
+# 📄 Booking and confirmation of a rental
+
+The booking and confirmation of a rental is a process that involves the following steps:
+- The user selects a rental and prepopulate dates  in a specific rental page.
+- The user click on the "Book" button.
+
+
+## Routes
+
+Lets view the routes in `config/routes.yaml`:
+
+```yaml
+# book a rental
+rental_book:
+    path: /rental/book/{rentalId}
+    controller: App\Controller\RentalController::book
+    methods: [POST]
+```
+
+## Controller
+
+The controller is located at `src/Controller/RentalController.php`. Lets add the `book` method:
+
+```php
+
+public function book(Request $request, $rentalId): Response
+    {
+        // Fetch the rental by id
+        $rental = $this->documentManager->getRepository(Rental::class)->find($rentalId);
+
+        // If the rental is not found, throw a 404 exception
+        if (!$rental) {
+            throw $this->createNotFoundException('Rental not found');
+        }
+
+        // Get the start and end dates from the request
+        $startDate = new \DateTime($request->request->get('startDate'));
+        $endDate = new \DateTime($request->request->get('endDate'));
+
+        // Calculate total price based on night cost and number of days
+        $interval = $startDate->diff($endDate);
+        $days = $interval->days;
+        $totalPrice = $days * $rental->getNightCost();
+
+        // Calculate new availability based on the booking dates
+        $newAvailability = $this->calcAvailabilitySlots($startDate, $endDate, $rental->getAvailability()->toArray());
+
+        // Create and persist the booking
+        $booking = new Booking();
+        $booking->setRentalId($rentalId);
+        $booking->setRentalName($rental->getName());
+        $booking->setStartDate($startDate);
+        $booking->setEndDate($endDate);
+        $booking->setTotalCost($totalPrice);
+        $rental->setAvailability($newAvailability);
+
+        // Persist the booking and rental
+        $this->documentManager->persist($booking);
+        $this->documentManager->persist($rental);
+        $this->documentManager->flush();
+
+        
+
+        // Redirect to a confirmation page or show confirmation message
+        return $this->render('rental/confirmation.html.twig', [
+            'rental' => $rental,
+            'booking' => $booking,
+            'totalPrice' => $totalPrice
+        ]);
+    }
+```
+
+This function does the following:
+- Fetch the rental by id
+- Get the start and end dates from the request
+- Calculate total price based on night cost and number of days
+- Calculate new availability based on the booking dates
+
+This helper function is used to calculate the new availability based on the booking dates, and diverge the availability slots:
+
+### Example 
+
+Booking "Rental 1" for dates 2024-01-02 to 2024-01-05:
+
+```json 
+
+{
+    rental_name : "Rental 1",
+    ...
+    availability : [
+      { "start_date" : "2024-01-01",
+        "end_date" : "2024-01-10"
+      },
+        { "start_date" : "2024-01-21",
+            "end_date" : "2025-01-01"
+        }
+    ]
+}
+```
+
+The availability slots are diverged into 3 slots:
+- 2024-01-01 until 2024-01-02
+- 2024-01-05 until 2024-01-10
+- 2025-01-21 until 2025-01-01
+
+Lets add the helper function to the controller: `src/Controller/RentalController.php`:
+
+```php
+ private function calcAvailabilitySlots(\DateTime $bookingStart, \DateTime $bookingEnd, array $availability): ArrayCollection {
+        // Create a new ArrayCollection to store the new availability
+        $newAvailability = new ArrayCollection();
+        
+        // Loop through each period in the availability to calculate the new availability
+        foreach ($availability as $period) {
+            $periodStart = $period->getStartDate();
+            $periodEnd = $period->getEndDate();
+    
+            // Booking is entirely before this period
+            if ($bookingEnd < $periodStart) {
+                $newAvailability->add($period);
+                continue;
+            }
+    
+            // Booking is entirely after this period
+            if ($bookingStart > $periodEnd) {
+                $newAvailability->add($period);
+                continue;
+            }
+    
+            // Booking starts before the period and ends within it
+            if ($bookingStart <= $periodStart && $bookingEnd < $periodEnd) {
+                $newPeriod = new Availability();
+                $newPeriod->setStartDate($bookingEnd->modify('+1 day'));
+                $newPeriod->setEndDate($periodEnd);
+                $newAvailability->add($newPeriod);
+                continue;
+            }
+    
+            // Booking starts during the period and ends after it
+            if ($bookingStart > $periodStart && $bookingEnd >= $periodEnd) {
+                $newPeriod = new Availability();
+                $newPeriod->setStartDate($periodStart);
+                $newPeriod->setEndDate($bookingStart->modify('-1 day'));
+                $newAvailability->add($newPeriod);
+                continue;
+            }
+    
+            // Booking is entirely within the period
+            if ($bookingStart > $periodStart && $bookingEnd < $periodEnd) {
+                $newPeriod1 = new Availability();
+                $newPeriod1->setStartDate($periodStart);
+                $newPeriod1->setEndDate($bookingStart->modify('-1 day'));
+                $newAvailability->add($newPeriod1);
+    
+                $newPeriod2 = new Availability();
+                $newPeriod2->setStartDate($bookingEnd->modify('+1 day'));
+                $newPeriod2->setEndDate($periodEnd);
+                $newAvailability->add($newPeriod2);
+                continue;
+            }
+    
+            // Booking covers the entire period
+            // Do not add the period to newAvailability (effectively removing it)
+        }
+    
+        return $newAvailability;
+    }
+```
+
+- Create and persist the booking
+- Persist the booking and rental
+
+To persist the booking we will create a form type `BookingType.php` under `src/Form`:
+
+```php
+<?php
+namespace App\Form;
+
+use App\Document\Booking;
+use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
+
+/*
+    * BookingType
+    ---------------------
+    * This class is responsible for creating the form for the booking entity.
+*/
+class BookingType extends AbstractType
+{
+    public function buildForm(FormBuilderInterface $builder, array $options)
+    {
+        $builder
+            ->add('rentalId', TextType::class)
+            ->add('rentalName', TextType::class)
+            ->add('totalCost', NumberType::class)
+            ->add('startDate', NumberType::class)
+            ->add('endDate', NumberType::class);
+            // Add other fields as needed
+    }
+
+    public function configureOptions(OptionsResolver $resolver)
+    {
+        $resolver->setDefaults([
+            'data_class' => Booking::class,
+        ]);
+    }
+}
+```
+
+This form will use the form submitted fields and map them to the `Booking` entity for persisting.
+
+Finally, the function redirects to a confirmation page or shows a confirmation message.
+
+## Confirmation Page
+
+The confirmation page is located at `templates/rental/confirmation.html.twig`. This page shows the booking details and the total price.
+
+
+```twig
+{# templates/rental/confirmation.html.twig #}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Booking Confirmation{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h2>Booking Confirmation</h2>
+        <p>Rental: {{ rental.name }}</p>
+        <p>Location: {{ rental.location }}</p>
+        <p>Check-in Date: {{ booking.startDate|date('Y-m-d') }}</p>
+        <p>Check-out Date: {{ booking.endDate|date('Y-m-d') }}</p>
+        <p>Total Price: {{ totalPrice }}$</p>
+
+        <a href="{{ path('rental_index') }}" class="btn btn-success my-3">Back</a>
+    </div>
+{% endblock %}
+```
+
+### Lets test the booking process
+- Search a rental for a specific date
+- Navigate to the rental page and click on the "Book" button
+
+Now try to find the same location for those dates and see that no rental is available.
+

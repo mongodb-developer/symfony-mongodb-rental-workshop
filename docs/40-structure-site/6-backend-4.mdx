@@ -1,0 +1,111 @@
+# 📚 My Bookings page
+
+This page lists the already made bookings of the user. 
+
+
+## Route
+
+Lets review the routes under `config/routes.yaml`:
+
+```yaml
+# list all bookings
+booking_index:
+    path: /booking
+    controller: App\Controller\BookingController::index
+    methods: [GET]
+```
+
+## Controller
+
+We will create a new controller `BookingController` and add the `index` method to list all the bookings in `Controller/BookingController.php`.
+
+```php
+<?php
+namespace App\Controller;
+
+
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+use App\Document\Booking;
+
+use Doctrine\ODM\MongoDB\DocumentManager;
+use Symfony\Component\Routing\Annotation\Route;
+
+
+use Psr\Log\LoggerInterface;
+
+/*
+    * BookingController
+    ---------------------
+    * This class is responsible for handling the booking query operations.
+*/
+class BookingController extends AbstractController
+{
+    // DocumentManager instance
+    private $documentManager;
+    private $logger;
+    // Constructor to initialize the DocumentManager and LoggerInterface
+    public function __construct(DocumentManager $documentManager , LoggerInterface $logger)
+    {
+        $this->documentManager = $documentManager;
+        $this->logger = $logger;
+    }
+
+    // Index action to display all the bookings
+    #[Route('/booking', name: 'booking_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        // Fetch all the bookings
+        $bookings = $this->documentManager->getRepository(Booking::class)->findAll();
+        
+        // Render the bookings page
+        return $this->render('rental/bookings.html.twig', ['bookings' => $bookings]);
+    }
+
+    
+
+}
+```
+
+The `index` method fetches all the bookings from the database and renders the `bookings.html.twig` template. The attribute tag `#[Route('/booking', name: 'booking_index', methods: ['GET'])]` is used to define the route for the `index` method.
+
+
+The twig template `bookings.html.twig` will be created in the next step.
+```twig
+{# templates/rental/index.html.twig #}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Booking List{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h2> My Bookings </h2>
+        <div class="row">
+            {% for booking in bookings %}
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4><a href="{{ path('rental_details', {'id': booking.rentalId}) }}">{{booking.rentalName }}</a></h4>
+                            <p class="card-text"><b>Confirmation ID:</b> {{ booking.id }}</p>
+                            <p class="card-text"><b>Check-in date:</b> {{ booking.startDate|date('Y-m-d') }}</p>
+                            <p class="card-text"><b>Check-out date:</b> {{ booking.endDate|date('Y-m-d') }}</p>
+
+                            <!-- Add more rental details here -->
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+</div>
+{% endblock %}
+```
+
+See the `booking` object in the `for` loop. It contains the rental name, confirmation ID, check-in and check-out dates. The `booking.rentalId` is used to create a link to the rental details page. The `booking.startDate` and `booking.endDate` are formatted using the `date` filter.
+
+## By the end of this step, you should have a working Bookings page that lists all the bookings made by the user.
+- Click on the `My Bookings` link in the navigation bar to view the bookings page.
+- The bookings page should list all the bookings made by the user.

@@ -1,0 +1,958 @@
+# 🌎 Full code
+
+The full code can be found in the main [github repo](https://github.com/mongodb-developer/symfony-mongodb-atlas-rentals).
+
+Lets verify full code of the following project :
+```
+.
+├── composer.json
+├── composer.lock
+├── symfony.lock
+├── .env
+├── src
+│   ├── Controller
+│   │   ├── BookingController.php
+|   |   ├── RentalController.php
+│   ├── Document
+│   │   ├── Booking.php
+│   │   ├── Rental.php
+│   │   ├── Availability.php
+│   ├── Form
+│   │   ├── BookingType.php
+│   │   ├── RentalType.php
+│   ├──
+├── config
+│   ├── packages
+│   │   ├── doctrine_mongodb.yaml
+│   │   ├── framework.yaml
+│   │   ├── twig.yaml
+│   │   └── routing.yaml
+│   ├── routes.yaml
+├── templates
+│   ├── rental
+│   │   ├── index.html.twig
+|   |   ├── confirmaion.html.twig
+|   |   ├── details.html.twig
+|   |   ├── create.html.twig
+|   |   ├── bookings.html.twig
+|   ├── base.html.twig
+├── public
+│   ├── index.php
+│   ├── css
+│   │   └── styles.css
+```
+
+## config/routes.yaml
+```yaml
+# controllers:
+#     resource:
+#         path: ../src/Controller/
+#         namespace: App\Controller
+#     type: attribute
+
+# main routes
+rental_index:
+    path: /
+    controller: App\Controller\RentalController::index
+    methods: [GET]
+
+# create a new rental
+rental_create:
+    path: /rental/create
+    controller: App\Controller\RentalController::create
+    methods: [GET, POST]
+
+# show a rental
+rental_details:
+    path: /rental/{id}
+    controller: App\Controller\RentalController::details
+    methods: [GET]
+
+# book a rental
+rental_book:
+    path: /rental/book/{rentalId}
+    controller: App\Controller\RentalController::book
+    methods: [POST]
+
+# list all bookings
+booking_index:
+    path: /booking
+    controller: App\Controller\BookingController::index
+    methods: [GET]
+```
+
+## RentalController.php
+```php
+<?php
+namespace App\Controller;
+
+use Doctrine\Common\Collections\ArrayCollection;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\VarDumper\VarDumper;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Doctrine\Common\Collections\Collection;
+use App\Document\Availability;
+use App\Document\Rental;
+use App\Document\Booking;
+use App\Form\RentalType;
+use App\Form\BookingType;
+use Doctrine\ODM\MongoDB\DocumentManager;
+use Symfony\Component\Routing\Annotation\Route;
+use MongoDB\BSON\Regex;
+use MongoDB\BSON\UTCDateTime;
+
+use Psr\Log\LoggerInterface;
+/*
+    * RentalController
+    ---------------------
+    * This class is responsible for handling the rental query and booking operations.
+*/
+class RentalController extends AbstractController
+{
+    // DocumentManager instance
+    private $documentManager;
+    private $logger;
+    // Constructor to initialize the DocumentManager and LoggerInterface
+    public function __construct(DocumentManager $documentManager , LoggerInterface $logger)
+    {
+        $this->documentManager = $documentManager;
+        $this->logger = $logger;
+    }
+
+    // Index action to display all the rentals or filter by city and availability
+    #[Route('/', name: 'rental_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        // Get the city, check-in and check-out dates from the query parameters
+        $city = $request->query->get('city');
+        $checkIn =  new \DateTime($request->query->get('check_in'));
+        $checkOut =  new \DateTime($request->query->get('check_out'));
+
+
+        // Fetch all the rentals
+        if ($city && $checkIn && $checkOut) {
+            // Fetch rentals based on city and availability
+            // The availability field is an array of objects with start_date and end_date fields
+            // So we use elemMatch to query the availability array and see if the user requested dates are available
+            $rentalRepository = $this->documentManager->getRepository(Rental::class);
+            $queryBuilder = $rentalRepository->createQueryBuilder();
+
+            
+            $rentals = $queryBuilder
+                ->field('location')->equals(new Regex( $city , 'i'))
+                ->field('availability')->elemMatch(
+                    $queryBuilder->expr()
+                        ->field('start_date')->lte($checkIn)
+                        ->field('end_date')->gte($checkOut)
+                )
+                ->getQuery()
+                ->execute();
+
+        } else {
+            // Fetch all the rentals
+            $rentals = $this->documentManager->getRepository(Rental::class)->findAll();
+        }
+        // Render the rentals page
+        return $this->render('rental/index.html.twig', ['rentals' => $rentals]);
+    }
+
+    // Details action to display the rental details and calculate the total price
+    #[Route('/rental/{id}', name: 'rental_details', methods: ['GET'])]
+    public function details(Request $request,string $id): Response
+    {
+        $checkIn =  new \DateTime($request->query->get('check_in'));
+        $checkOut =  new \DateTime($request->query->get('check_out'));
+        $rental = $this->documentManager->getRepository(Rental::class)->find($id);
+
+        // Calculate total price based on night cost and number of days
+        $interval = $checkIn->diff($checkOut);
+        $days = $interval->days;
+        $totalPrice = $days * $rental->getNightCost();
+
+        if (!$rental) {
+            throw $this->createNotFoundException('No rental found for id '.$id);
+        }
+
+        // Render the rental details page
+        return $this->render('rental/details.html.twig', [
+            'rental' => $rental,
+            'total_price' => $totalPrice
+        ]);
+    }
+
+
+    // Create action to create a new rental
+    #[Route('/rental/create', name: 'rental_create', methods: ['GET', 'POST'])]
+    public function create(Request $request): Response
+    {   
+        // Create a new rental instance
+        $rental = new Rental();
+        // print request
+        $this->logger->info('Request: '.$request->getContent());
+
+        // Create a form to create a new rental
+        $form = $this->createForm(RentalType::class, $rental);
+        $form->handleRequest($request);
+
+        // If the form is submitted and valid, persist the rental and redirect to the rentals page
+        if ($form->isSubmitted() && $form->isValid()) {
+            $this->documentManager->persist($rental);
+            $this->documentManager->flush();
+
+            return $this->redirectToRoute('rental_index');
+        }
+
+        // Render the create rental page
+        return $this->render('rental/create.html.twig', [
+            'form' => $form->createView(),
+        ]);
+    }
+
+    // Book action to book a rental
+    #[Route('/rental/book/{rentalId}', name: 'rental_book', methods: ['POST'])]
+    public function book(Request $request, $rentalId): Response
+    {
+        // Fetch the rental by id
+        $rental = $this->documentManager->getRepository(Rental::class)->find($rentalId);
+
+        // If the rental is not found, throw a 404 exception
+        if (!$rental) {
+            throw $this->createNotFoundException('Rental not found');
+        }
+
+        // Get the start and end dates from the request
+        $startDate = new \DateTime($request->request->get('startDate'));
+        $endDate = new \DateTime($request->request->get('endDate'));
+
+        // Calculate total price based on night cost and number of days
+        $interval = $startDate->diff($endDate);
+        $days = $interval->days;
+        $totalPrice = $days * $rental->getNightCost();
+
+        // Calculate new availability based on the booking dates
+        $newAvailability = $this->calcAvailabilitySlots($startDate, $endDate, $rental->getAvailability()->toArray());
+
+        // Create and persist the booking
+        $booking = new Booking();
+        $booking->setRentalId($rentalId);
+        $booking->setRentalName($rental->getName());
+        $booking->setStartDate($startDate);
+        $booking->setEndDate($endDate);
+        $booking->setTotalCost($totalPrice);
+        $rental->setAvailability($newAvailability);
+
+        // Persist the booking and rental
+        $this->documentManager->persist($booking);
+        $this->documentManager->persist($rental);
+        $this->documentManager->flush();
+
+        
+
+        // Redirect to a confirmation page or show confirmation message
+        return $this->render('rental/confirmation.html.twig', [
+            'rental' => $rental,
+            'booking' => $booking,
+            'totalPrice' => $totalPrice
+        ]);
+    }
+
+ 
+
+    private function calcAvailabilitySlots(\DateTime $bookingStart, \DateTime $bookingEnd, array $availability): ArrayCollection {
+        // Create a new ArrayCollection to store the new availability
+        $newAvailability = new ArrayCollection();
+        
+        // Loop through each period in the availability to calculate the new availability
+        foreach ($availability as $period) {
+            $periodStart = $period->getStartDate();
+            $periodEnd = $period->getEndDate();
+    
+            // Booking is entirely before this period
+            if ($bookingEnd < $periodStart) {
+                $newAvailability->add($period);
+                continue;
+            }
+    
+            // Booking is entirely after this period
+            if ($bookingStart > $periodEnd) {
+                $newAvailability->add($period);
+                continue;
+            }
+    
+            // Booking starts before the period and ends within it
+            if ($bookingStart <= $periodStart && $bookingEnd < $periodEnd) {
+                $newPeriod = new Availability();
+                $newPeriod->setStartDate($bookingEnd->modify('+1 day'));
+                $newPeriod->setEndDate($periodEnd);
+                $newAvailability->add($newPeriod);
+                continue;
+            }
+    
+            // Booking starts during the period and ends after it
+            if ($bookingStart > $periodStart && $bookingEnd >= $periodEnd) {
+                $newPeriod = new Availability();
+                $newPeriod->setStartDate($periodStart);
+                $newPeriod->setEndDate($bookingStart->modify('-1 day'));
+                $newAvailability->add($newPeriod);
+                continue;
+            }
+    
+            // Booking is entirely within the period
+            if ($bookingStart > $periodStart && $bookingEnd < $periodEnd) {
+                $newPeriod1 = new Availability();
+                $newPeriod1->setStartDate($periodStart);
+                $newPeriod1->setEndDate($bookingStart->modify('-1 day'));
+                $newAvailability->add($newPeriod1);
+    
+                $newPeriod2 = new Availability();
+                $newPeriod2->setStartDate($bookingEnd->modify('+1 day'));
+                $newPeriod2->setEndDate($periodEnd);
+                $newAvailability->add($newPeriod2);
+                continue;
+            }
+    
+            // Booking covers the entire period
+            // Do not add the period to newAvailability (effectively removing it)
+        }
+    
+        return $newAvailability;
+    }
+    
+
+}
+```
+
+## BookingController.php
+```php
+<?php
+<?php
+namespace App\Controller;
+
+
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+use App\Document\Booking;
+
+use Doctrine\ODM\MongoDB\DocumentManager;
+use Symfony\Component\Routing\Annotation\Route;
+
+
+use Psr\Log\LoggerInterface;
+
+/*
+    * BookingController
+    ---------------------
+    * This class is responsible for handling the booking query operations.
+*/
+class BookingController extends AbstractController
+{
+    // DocumentManager instance
+    private $documentManager;
+    private $logger;
+    // Constructor to initialize the DocumentManager and LoggerInterface
+    public function __construct(DocumentManager $documentManager , LoggerInterface $logger)
+    {
+        $this->documentManager = $documentManager;
+        $this->logger = $logger;
+    }
+
+    // Index action to display all the bookings
+    #[Route('/booking', name: 'booking_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        // Fetch all the bookings
+        $bookings = $this->documentManager->getRepository(Booking::class)->findAll();
+        
+        // Render the bookings page
+        return $this->render('rental/bookings.html.twig', ['bookings' => $bookings]);
+    }
+
+    
+
+}
+```
+
+## Rental.php
+```php
+<?php
+namespace App\Document;
+
+use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
+use Doctrine\ODM\MongoDB\Types\Type;
+use App\Document\Availability;
+use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
+use MongoDB\BSON\ObjectId;
+
+/*
+    * Rental
+    ---------------------
+    * This class is responsible for defining the rental document and its properties.
+*/
+#[
+    MongoDB\Document(collection: "rentals")
+]
+class Rental
+{
+    #[ODM\Id]
+    protected $id;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $name;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $location;
+
+    #[ODM\Field(type: Type::INT)]
+    protected $night_cost;
+
+    #[ODM\EmbedMany(targetDocument: Availability::class)]
+    protected Collection $availability;
+
+    public function __construct(){
+        $this->availability = new ArrayCollection();
+
+        // Create an instance of Availability and add it to the collection
+        $initialAvailability = new Availability();
+        $initialAvailability->setStartDate(new \DateTime('2024-01-01'));
+        $initialAvailability->setEndDate(new \DateTime('2026-01-01'));
+        $this->availability->add($initialAvailability);
+    }
+    // Add getters and setters for each property
+    public function getId(): ?string
+    {
+        return $this->id;
+    }
+
+    public function getName(): ?string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): self
+    {
+        $this->name = $name;
+        return $this;
+    }
+
+
+    public function getNightCost(): ?float
+    {
+        return $this->night_cost;
+    }
+
+    public function setNightCost(float $night_cost): self
+    {
+        $this->night_cost = $night_cost;
+        return $this;
+    }
+    public function getLocation(): ?string
+    {
+        return $this->location;
+    }
+
+    public function setLocation(string $location): self
+    {
+        $this->location = $location;
+        return $this;
+    }
+
+    public function getAvailability(): Collection
+    {
+        return $this->availability;
+    }
+
+    public function setAvailability(Collection $availability): void
+    {
+        $this->availability = $availability;
+    }
+}
+```
+
+## Booking.php
+```php
+<?php
+namespace App\Document;
+
+use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
+use Doctrine\ODM\MongoDB\Types\Type;
+use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
+use MongoDB\BSON\ObjectId;
+
+/*  
+    * Booking
+    ---------------------
+    * This class is responsible for defining the booking document and its properties.
+*/
+#[
+    MongoDB\Document(collection: "bookings")
+]
+class Booking
+{
+    #[ODM\Id]
+    protected $id;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $rental_id;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $rental_name;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $location;
+
+    #[ODM\Field(type: Type::INT)]
+    protected $total_cost;
+
+    #[ODM\Field(type: Type::DATE_IMMUTABLE)]
+    protected $start_date;
+
+    #[ODM\Field(type: Type::DATE_IMMUTABLE)]
+    protected $end_date;
+
+    // Add getters and setters for each property
+    public function getId(): ?string
+    {
+        return $this->id;
+    }
+
+
+    public function getRentalId(): ?string
+    {
+        return $this->rental_id;
+    }
+
+    public function setRentalId(string $rental_id): self
+    {
+        $this->rental_id = $rental_id;
+        return $this;
+    }
+
+    public function getRentalName(): ?string
+    {
+        return $this->rental_name;
+    }
+
+    public function setRentalName(?string $rental_name): self
+    {
+        $this->rental_name = $rental_name;
+        return $this;
+    }
+
+    public function getLocation(): ?string
+    {
+        return $this->location;
+    }
+
+    public function setLocation(string $location): self
+    {
+        $this->location = $location;
+        return $this;
+    }
+
+    public function getTotalCost()
+    {
+        return $this->total_cost;
+    }
+
+    public function setTotalCost(?int $total_cost): self
+    {
+        $this->total_cost = $total_cost;
+        return $this;
+    }
+
+    public function getStartDate(): \DateTimeImmutable
+    {
+        return $this->start_date;
+    }
+
+    public function setStartDate(\DateTime $start_date): void
+    {
+
+        if ($start_date instanceof \DateTime) {
+            $start_date = \DateTimeImmutable::createFromMutable($start_date);
+        }
+        $this->start_date = $start_date;
+    }
+
+    public function getEndDate(): \DateTimeImmutable
+    {
+        return $this->end_date;
+    }
+
+    public function setEndDate(\DateTime $end_date): void
+    {
+        if ($end_date instanceof \DateTime) {
+            $end_date = \DateTimeImmutable::createFromMutable($end_date);
+        }
+        $this->end_date = $end_date;
+    }
+
+
+}
+```
+
+## Availability.php
+```php
+<?php
+namespace App\Document;
+
+use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
+
+use Doctrine\ODM\MongoDB\Types\Type;
+/*
+    * Availability
+    ---------------------
+    * This class is responsible for defining the availability sub document and its properties.
+*/
+#[
+    ODM\EmbeddedDocument
+]
+class Availability
+{
+    #[ODM\Field(type: Type::DATE)]
+    protected $start_date;
+
+    #[ODM\Field(type: Type::DATE)]
+    protected $end_date;
+
+
+    public function getStartDate(): ?\DateTime
+    {
+        return $this->start_date;
+    }
+
+    public function setStartDate(\DateTime $start_date): self
+    {
+        $this->start_date = $start_date;
+        return $this;
+    }
+
+    public function getEndDate(): ?\DateTime
+    {
+        return $this->end_date;
+    }
+
+    public function setEndDate(\DateTime $end_date): self
+    {
+        $this->end_date = $end_date;
+        return $this;
+    }
+
+}
+```
+
+## RentalType.php
+```php
+<?php
+namespace App\Form;
+
+use App\Document\Rental;
+use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
+
+/* 
+    * RentalType
+    ---------------------
+    * This class is responsible for creating the form for the rental entity.
+*/
+class RentalType extends AbstractType
+{
+    public function buildForm(FormBuilderInterface $builder, array $options)
+    {
+        $builder
+            ->add('name', TextType::class)
+            ->add('location', TextType::class)
+            ->add('nightCost', NumberType::class);
+            // Add other fields as needed
+    }
+
+    public function configureOptions(OptionsResolver $resolver)
+    {
+        $resolver->setDefaults([
+            'data_class' => Rental::class,
+        ]);
+    }
+}
+```
+
+## BookingType.php
+```php
+<?php
+namespace App\Form;
+
+use App\Document\Booking;
+use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
+
+/*
+    * BookingType
+    ---------------------
+    * This class is responsible for creating the form for the booking entity.
+*/
+class BookingType extends AbstractType
+{
+    public function buildForm(FormBuilderInterface $builder, array $options)
+    {
+        $builder
+            ->add('rentalId', TextType::class)
+            ->add('rentalName', TextType::class)
+            ->add('totalCost', NumberType::class)
+            ->add('startDate', NumberType::class)
+            ->add('endDate', NumberType::class);
+            // Add other fields as needed
+    }
+
+    public function configureOptions(OptionsResolver $resolver)
+    {
+        $resolver->setDefaults([
+            'data_class' => Booking::class,
+        ]);
+    }
+}
+```
+
+## base.html.twig
+```twig
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}MongoDB Rental Finder!{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+     <link rel="icon" type="image/x-icon" href="/public/favicon.png">
+     <link href="{{ asset('css/styles.css') }}" rel="stylesheet">
+      <link href="https://use.fontawesome.com/releases/v5.15.3/css/all.css" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body>
+     <div class="header">
+        <a href="{{ path('rental_index') }}">
+        <img class="logo" src="{{ asset('php-logo.png') }}" alt="Private Home aPartments Logo"/>
+        </a>
+
+        <h1>Private Home aPartments</h1>
+        <a href="{{ path('booking_index') }}">My Bookings</a>
+    </div>
+    {% block body %}{% endblock %}
+</body>
+</html>
+```
+
+## rental/index.html.twig
+```twig
+{# templates/rental/index.html.twig #}
+{% set currentCity = app.request.query.get('city') %}
+{% set currentCheckIn = app.request.query.get('check_in') %}
+{% set currentCheckOut = app.request.query.get('check_out') %}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Rental List{% endblock %}
+
+{% block body %}
+    <div class="container">
+           <h2>Search Rentals</h2>
+        <form action="{{ path('rental_index') }}" method="get">
+            <div class="form-group">
+                <label for="city">Location:</label>
+                <input type="text" id="city" name="city" class="form-control" value="{{ app.request.query.get('city') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="check_in">Check-in Date:</label>
+                <input type="date" id="check_in" name="check_in" class="form-control" value="{{ app.request.query.get('check_in') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="check_out">Check-out Date:</label>
+                <input type="date" id="check_out" name="check_out" class="form-control" value="{{ app.request.query.get('check_out') }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+
+        
+       
+        <a href="{{ path('rental_create') }}" class="btn btn-success my-3">Create New Rental</a>
+        <div class="row">
+            {% for rental in rentals %}
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4>
+                                <a href="{{ path('rental_details', {
+                                    'id': rental.id,
+                                    'city': currentCity,
+                                    'check_in': currentCheckIn,
+                                    'check_out': currentCheckOut
+                                }) }}">{{ rental.name }}</a></h4>
+                            <p class="card-text"><b>Location:</b> {{ rental.location }}</p>
+                            <p class="card-text"><b>Per night:</b> {{ rental.nightCost }}$</p>
+                            
+                            <!-- Add more rental details here -->
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
+```
+
+## rental/details.html.twig
+```twig
+{# templates/rental/details.html.twig #}
+
+
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Rental Details{% endblock %}
+
+{% block body %}
+    <div class="container mt-4">
+        <h2 class="mb-3"><i class="fas fa-rental"></i> {{ rental.name }}</h2>
+        <p><i class="fas fa-map-marker-alt"></i>  {{ rental.location }}</p>
+        <p><i class="fas fa-tag"></i> <strong> Night Rate:</strong> {{ rental.nightCost }}$</p>
+         <p><i class="fas fa-tag"></i> <strong> Total Rate:</strong> {{ (total_price is not same as 0 )? total_price ~ '$' : 'N/A' }}</p>
+        <!-- Add more rental details here -->
+
+        <h3 class="mt-4">Book a Room</h3>
+        <form class="mt-3" action="{{ path('rental_book', {'rentalId': rental.id}) }}" method="post">
+            <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input id="start_date" type="date" name="startDate" class="form-control" value="{{ app.request.query.get('check_in')  }}">
+            </div>
+            <div class="form-group">
+                <label for="end_date">End Date</label>
+                <input id="end_date" type="date" name="endDate" class="form-control" value="{{app.request.query.get('check_out') }}">
+            </div>
+            <button type="submit" class="btn btn-success">Book</button>
+        </form>
+    </div>
+{% endblock %}
+
+```
+
+## rental/create.html.twig
+```twig
+{# templates/rental/create.html.twig #}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Create Rental{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h2>Create Rental</h2>
+        {{ form_start(form, {'attr': {'class': 'form-horizontal'}}) }}
+        
+        <div class="form-group">
+            {{ form_label(form.name) }}
+            {{ form_widget(form.name, {'attr': {'class': 'form-control'}}) }}
+            {{ form_errors(form.name) }}
+        </div>
+
+        <div class="form-group">
+            {{ form_label(form.location) }}
+            {{ form_widget(form.location, {'attr': {'class': 'form-control'}}) }}
+            {{ form_errors(form.location) }}
+        </div>
+
+         <div class="form-group">
+            {{ form_label(form.nightCost) }}
+            {{ form_widget(form.nightCost, {'attr': {'class': 'form-control'}}) }}
+            {{ form_errors(form.nightCost) }}
+        </div>
+        <div class="form-group">
+            <label for="start_date">Availability Start Date:</label>
+            <input type="date" id="start_date" name="start_date" class="form-control" value="2024-01-01" required>
+        </div>
+        <div class="form-group">
+            <label for="end_date">Availability End Date:</label>
+            <input type="date" id="end_date" name="end_date" class="form-control" value="2026-01-01" required>
+        </div>
+
+
+        <button type="submit" class="btn btn-success">Create</button>
+        {{ form_end(form) }}
+    </div>
+{% endblock %}
+
+```
+
+## rental/confirmation.html.twig
+```twig
+{# templates/rental/confirmation.html.twig #}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}Booking Confirmation{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h2>Booking Confirmation</h2>
+        <p><strong>Rental:</strong> {{ rental.name }}</p>
+        <p><strong>Location:</strong> {{ rental.location }}</p>
+        <p><strong>Start Date:</strong> {{ booking.startDate|date('Y-m-d') }}</p>
+        <p><strong>End Date:</strong> {{ booking.endDate|date('Y-m-d') }}</p>
+        <p><strong>Total Cost:</strong> {{ totalPrice }}$</p>
+    </div>
+{% endblock %}
+```
+
+## rental/bookings.html.Twig
+```twig
+{# templates/rental/bookings.html.twig #}
+
+{% extends 'base.html.twig' %}
+
+{% block title %}My Bookings{% endblock %}
+
+{% block body %}
+    <div class="container">
+        <h2>My Bookings</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Rental</th>
+                    <th>Confirmation</th>
+                    <th>Location</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Total Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for booking in bookings %}
+                    <tr>
+                        <td><a href="{{ path('rental_details', {'id': booking.rentalId}) }}">
+                            {{booking.rentalName }}</a></td>
+                        <td>{{booking.id}}</td>
+                        <td>{{ booking.location }}</td>
+                        <td>{{ booking.startDate|date('Y-m-d') }}</td>
+                        <td>{{ booking.endDate|date('Y-m-d') }}</td>
+                        <td>{{ booking.totalCost }}$</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}               
+                     
+```
+

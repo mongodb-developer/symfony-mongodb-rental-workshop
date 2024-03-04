@@ -1,0 +1,99 @@
+# 🏁 Quick Start 
+
+Lets start building our application using Symfony and [MongoDB Doctrine ODM](https://www.doctrine-project.org/projects/mongodb-odm.html).
+
+## Build a skeleton project
+
+We will start building a project called rentals.
+
+```shell
+composer create-project symfony/skeleton rentals
+```
+
+## Install MongoDB Extension
+
+```shell
+cd rentals
+pecl install mongodb
+echo "extension=mongodb.so" >> `php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||"`
+```
+
+Verify the `php.ini` file to point to the installed `mongodb.so`
+
+## Install drivers
+
+```shell
+composer require doctrine/mongodb-odm-bundle
+composer require mongodb/mongodb
+```
+
+## Configure the MongoDB ODM
+
+Edit the file `config/packages/doctrine_mongodb.yaml` and add the following content:
+
+```yaml
+# config/packages/doctrine_mongodb.yaml
+doctrine_mongodb:
+    auto_generate_proxy_classes: true
+    auto_generate_hydrator_classes: true
+    connections:
+        default:
+            server: '%env(resolve:MONGODB_URL)%'
+            options: {}
+    default_database: '%env(resolve:MONGODB_DB)%'
+    document_managers:
+        default:
+            auto_mapping: true
+            mappings:
+                App:
+                    dir: '%kernel.project_dir%/src/Document'
+                    mapping: true
+                    type: attribute
+                    prefix: 'App\Document'
+                    is_bundle: false
+                    alias: App
+
+
+```
+
+
+## Install other dependencies 
+
+### Form
+
+```shell
+composer require symfony/form
+```
+## twig bundle
+```shell
+composer require symfony/twig-bundle
+```
+
+## Assets
+```shell
+composer require symfony/asset
+```
+
+## By the end of this page you will have
+
+A project structure like this:
+```
+.
+├── composer.json
+├── composer.lock
+├── symfony.lock
+├── src
+│   ├── Controller
+│   ├── Document
+├── config
+│   ├── packages
+│   │   ├── doctrine_mongodb.yaml
+│   │   ├── framework.yaml
+│   │   ├── twig.yaml
+│   │   └── routing.yaml
+├── public
+│   ├── index.php
+│   ├── css
+│   │   └── styles.css
+```
+The necessary dependencies to start building a web application using Symfony and MongoDB ODM.

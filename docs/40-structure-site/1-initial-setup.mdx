@@ -1,0 +1,421 @@
+# 🏃‍♂️ Application development setup
+
+Lets start building our application building blocks:
+- `.env` file to store our environment variables
+- basic twig template
+- Document entities for :
+- - Rental
+- - Booking
+- - Availability 
+- Generate Data for the rentals collection
+
+
+## .env file
+
+Create a `.env` file in the root of the project and add the following:
+
+```env
+###> doctrine/mongodb-odm-bundle ###
+MONGODB_URL=<your atlas cluster URI>
+MONGODB_DB=symfony
+```
+
+Replace `<your atlas cluster URI>` with the connection string for your MongoDB Atlas cluster. You can find this in the MongoDB Atlas UI by clicking "Connect" and then "Connect your application".
+
+
+
+
+## Twig template
+
+Create a base twig template in `templates/base.html.twig`:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}MongoDB Rental Finder!{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+     <link rel="icon" type="image/x-icon" href="/public/favicon.png">
+     <link href="{{ asset('css/styles.css') }}" rel="stylesheet">
+      <link href="https://use.fontawesome.com/releases/v5.15.3/css/all.css" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body>
+     <div class="header">
+        <a href="{{ path('rental_index') }}">
+        <img class="logo" src="{{ asset('php-logo.png') }}" alt="Private Home aPartments Logo"/>
+        </a>
+
+        <h1>Private Home aPartments</h1>
+        <a href="{{ path('booking_index') }}">My Bookings</a>
+    </div>
+    {% block body %}{% endblock %}
+</body>
+</html>
+```
+
+This template includes the Bootstrap CSS and a custom `styles.css` file. It also includes a header with a logo and a link to the rental index page. Every page in the application will extend this base template.
+
+Add the following CSS to `public/css/styles.css`:
+
+```css
+/* public/css/styles.css */
+
+.rental-card {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.rental-card h3 {
+    color: #333;
+    margin-top: 0;
+}
+
+.logo {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    margin-bottom: 10px;
+}
+
+.header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background-color: #f1f1f1;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.date-pickers {
+    display: flex;
+    justify-content: space-between;
+}
+```
+
+## Document entities
+
+In `src/Document`, create the following document classes:
+
+### `Rental.php`
+
+```php
+<?php
+namespace App\Document;
+
+use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
+use Doctrine\ODM\MongoDB\Types\Type;
+use App\Document\Availability;
+use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
+use MongoDB\BSON\ObjectId;
+
+/*
+    * Rental
+    ---------------------
+    * This class is responsible for defining the rental document and its properties.
+*/
+#[
+    MongoDB\Document(collection: "rentals")
+]
+class Rental
+{
+    #[ODM\Id]
+    protected $id;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $name;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $location;
+
+    #[ODM\Field(type: Type::INT)]
+    protected $night_cost;
+
+    #[ODM\EmbedMany(targetDocument: Availability::class)]
+    protected Collection $availability;
+
+    public function __construct(){
+        $this->availability = new ArrayCollection();
+
+        // Create an instance of Availability and add it to the collection
+        $initialAvailability = new Availability();
+        $initialAvailability->setStartDate(new \DateTime('2024-01-01'));
+        $initialAvailability->setEndDate(new \DateTime('2026-01-01'));
+        $this->availability->add($initialAvailability);
+    }
+    // Add getters and setters for each property
+    public function getId(): ?string
+    {
+        return $this->id;
+    }
+
+    public function getName(): ?string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): self
+    {
+        $this->name = $name;
+        return $this;
+    }
+
+
+    public function getNightCost(): ?float
+    {
+        return $this->night_cost;
+    }
+
+    public function setNightCost(float $night_cost): self
+    {
+        $this->night_cost = $night_cost;
+        return $this;
+    }
+    public function getLocation(): ?string
+    {
+        return $this->location;
+    }
+
+    public function setLocation(string $location): self
+    {
+        $this->location = $location;
+        return $this;
+    }
+
+    public function getAvailability(): Collection
+    {
+        return $this->availability;
+    }
+
+    public function setAvailability(Collection $availability): void
+    {
+        $this->availability = $availability;
+    }
+}
+```
+
+### `Booking.php`
+
+```php
+<?php
+namespace App\Document;
+
+use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
+use Doctrine\ODM\MongoDB\Types\Type;
+use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
+use MongoDB\BSON\ObjectId;
+
+/*  
+    * Booking
+    ---------------------
+    * This class is responsible for defining the booking document and its properties.
+*/
+#[
+    MongoDB\Document(collection: "bookings")
+]
+class Booking
+{
+    #[ODM\Id]
+    protected $id;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $rental_id;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $rental_name;
+
+    #[ODM\Field(type: Type::STRING)]
+    protected $location;
+
+    #[ODM\Field(type: Type::INT)]
+    protected $total_cost;
+
+    #[ODM\Field(type: Type::DATE_IMMUTABLE)]
+    protected $start_date;
+
+    #[ODM\Field(type: Type::DATE_IMMUTABLE)]
+    protected $end_date;
+
+    // Add getters and setters for each property
+    public function getId(): ?string
+    {
+        return $this->id;
+    }
+
+
+    public function getRentalId(): ?string
+    {
+        return $this->rental_id;
+    }
+
+    public function setRentalId(string $rental_id): self
+    {
+        $this->rental_id = $rental_id;
+        return $this;
+    }
+
+    public function getRentalName(): ?string
+    {
+        return $this->rental_name;
+    }
+
+    public function setRentalName(?string $rental_name): self
+    {
+        $this->rental_name = $rental_name;
+        return $this;
+    }
+
+    public function getLocation(): ?string
+    {
+        return $this->location;
+    }
+
+    public function setLocation(string $location): self
+    {
+        $this->location = $location;
+        return $this;
+    }
+
+    public function getTotalCost()
+    {
+        return $this->total_cost;
+    }
+
+    public function setTotalCost(?int $total_cost): self
+    {
+        $this->total_cost = $total_cost;
+        return $this;
+    }
+
+    public function getStartDate(): \DateTimeImmutable
+    {
+        return $this->start_date;
+    }
+
+    public function setStartDate(\DateTime $start_date): void
+    {
+
+        if ($start_date instanceof \DateTime) {
+            $start_date = \DateTimeImmutable::createFromMutable($start_date);
+        }
+        $this->start_date = $start_date;
+    }
+
+    public function getEndDate(): \DateTimeImmutable
+    {
+        return $this->end_date;
+    }
+
+    public function setEndDate(\DateTime $end_date): void
+    {
+        if ($end_date instanceof \DateTime) {
+            $end_date = \DateTimeImmutable::createFromMutable($end_date);
+        }
+        $this->end_date = $end_date;
+    }
+
+
+}
+```
+
+### `Availability.php`
+
+```php
+<?php
+namespace App\Document;
+
+use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
+use Doctrine\ODM\MongoDB\Types\Type;
+/*
+    * Availability
+    ---------------------
+    * This class is responsible for defining the availability sub document and its properties.
+*/
+#[
+    ODM\EmbeddedDocument
+]
+class Availability
+{
+    #[ODM\Field(type: Type::DATE)]
+    protected $start_date;
+
+    #[ODM\Field(type: Type::DATE)]
+    protected $end_date;
+
+    public function getStartDate(): ?\DateTime
+    {
+        return $this->start_date;
+    }
+
+    public function setStartDate(\DateTime $start_date): self
+    {
+        $this->start_date = $start_date;
+        return $this;
+    }
+
+    public function getEndDate(): ?\DateTime
+    {
+        return $this->end_date;
+    }
+
+    public function setEndDate(\DateTime $end_date): self
+    {
+        $this->end_date = $end_date;
+        return $this;
+    }
+
+}
+```
+
+Those classes expose the properties of the rental, booking and availability documents. The `Rental` class has a collection of `Availability` subdocuments, which represent the availability of the rental.
+The only methods here are getters and setters for each property. Those will be used by the MongoDB ODM to map the documents to the database.
+
+## Generate Data for the rentals collection
+
+We will use the [mongosh](https://www.mongodb.com/docs/mongodb-shell/install/) shell to insert some data into the rentals collection. We will also use the falso data generator to generate some random data for the rentals collection.
+
+```bash
+npm install @ngneat/falso
+mongosh "mongodb+srv://<your atlas cluster URI>/test" --username <username>
+```
+
+Now we will run a script to generate some random data for the rentals collection. Copy the following script and run it in the mongosh shell:
+
+```javascript
+const falso = require('@ngneat/falso');
+
+use symfony;
+
+const rentals = [];
+for (let i = 0; i < 100; i++) {
+  rentals.push({
+    name: falso.randCompanyName(),
+    location: falso.randCity(),
+    night_cost: falso.randNumber({ min: 50, max: 500 }), // Random cost between 50 and 500
+    availability: [
+      {
+        start_date: new Date('2024-01-01'),
+        end_date: new Date('2026-01-01')
+      }
+    ]
+  });
+}
+
+// Assuming your collection is named 'rentals'
+db.rentals.insertMany(rentals);
+
+// Create an index for searching by location
+db.rentals.createIndex({ location: 1, "availability.start_date": 1, "availability.end_date": 1 });
+
+```
