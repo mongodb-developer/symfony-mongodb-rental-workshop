@@ -2,16 +2,88 @@
 
 ## Platform.sh 
 
-Platform.sh is a Platform as a Service (PaaS) that allows you to host, build, and scale applications in the cloud. It is a great tool to deploy and manage [Symfony](https://symfony.com/cloud/) your applications.
+[Platform.sh](https://platform.sh/) is a Platform as a Service (PaaS) that allows you to host, build, and scale applications in the cloud. It is a nice tool to deploy and manage your [Symfony](https://symfony.com/cloud/)  applications.
 
 ## CLI Installation of our project
 
-We will follow the guide on Symfony website to [deploy]9https://docs.platform.sh/guides/symfony/get-started) an exsiting project on Platform.sh.
+We will follow the guide on Symfony website to [deploy](https://docs.platform.sh/guides/symfony/get-started) an exsiting project on Platform.sh.
 ### Prerequisites
 - Git
 - Symfony CLI
+- [Platform.sh CLI](https://docs.platform.sh/administration/cli.html#cli-command-line-interface)
+
+Authenticate to Platform.sh
+```bash
+platform
+```
+
+
 
 ### Init the project
+
+In our root directory we will run the following command to initialize the project:
+
 ```bash
 symfony project:init
 ```
+
+### Setup the project fields
+
+First we will edit the needed files to deploy
+
+**.platform.app.yaml**
+```yaml
+name: app
+
+type: php:8.2
+
+runtime:
+    extensions:
+        - apcu
+        - mbstring
+        - sodium
+        - ctype
+        - iconv
+        - mongodb  
+        
+```
+
+Add to a local git in order to be able to push the project to Platform.sh
+```bash
+git add .platform.app.yaml .platform/services.yaml .platform/routes.yaml php.ini
+git commit -m "Add Platform.sh configuration"
+```
+### Add secrets
+
+```
+platform variable:create --name env:MONGODB_URL --value '<ATLAS_URI>' --sensitive true
+platform variable:create --name env:MONGODB_DB --value 'symfony'
+```
+
+### Deploy the project
+```bash
+symfony deploy
+```
+
+This will ask for you to select the project and the environment to deploy to. Once its selected the prompt will ask to confirm if you want to push the current git HEAD into the project.
+
+The deployment will take a few minutes to complete. Once it is done, you will be able to access the published URL on the cloud.
+
+## Troubleshooting
+
+To view the logs you can :
+1. Use the command line
+```bash
+symfony log app --tail
+```
+2. SSH into your cloud pod:
+```bash
+ platform ssh -e  <ENVIRONMENT_NAME> 
+
+ app> tail -f /var/log/app.log
+ ```
+
+
+# 📦 Conclusion
+
+In this workshop we have seen how to deploy a Symfony application to the cloud using Platform.sh. We have seen how to create a new project, how to create a new MongoDB database and how to deploy the project to the cloud. We have also seen how to troubleshoot the deployment and how to access the logs of the application.
