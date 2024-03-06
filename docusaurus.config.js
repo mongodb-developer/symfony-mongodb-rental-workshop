@@ -70,6 +70,10 @@ const footerLinks = [
     label: "This lab in GitHub",
   },
   {
+    href: `https://github.com/${organizationName}/${workshopName}`,
+    label: "PHP Driver",
+  },
+  {
     label: `© ${new Date().getFullYear()} MongoDB, Inc.`,
     href: "#",
   },

@@ -15,7 +15,6 @@ composer create-project symfony/skeleton rentals
 ```shell
 cd rentals
 pecl install mongodb
-echo "extension=mongodb.so" >> `php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||"`
 ```
 
 Verify the `php.ini` file to point to the installed `mongodb.so`
