@@ -3,10 +3,12 @@ sidebar_position: 20
 ---
 
 import useBaseUrl from '@docusaurus/useBaseUrl';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # 🛠️ Prerequisites
 
-[PHP Symfony](https://symfony.com/) is a modern PHP framework that makes it easy to build web applications. It's flexible, scalable, and easy to use. It's also a great way to learn PHP and web development.
+[Symfony](https://symfony.com/) is a modern PHP framework that makes it easy to build web applications. It's flexible, scalable, and easy to use. It's also a great way to learn PHP and web development.
 
 In their own words:
 
@@ -19,21 +21,57 @@ You can even [try thier cloud platform](https://symfony.com/cloud/) without inst
 ## PHP Tools
 
 - **PHP** - Symfony requires PHP 7.4 or higher. You can download PHP from the [official PHP website](https://www.php.net/downloads).
-```
-brew install php
-```
+<Tabs>
+    <TabItem value="mac" label="Mac">
+    ```bash
+    brew install php
+    ```
+    </TabItem>
+    <TabItem value="linux" label="Linux">
+    ```bash
+    sudo apt-get install php
+    ```
+    </TabItem>
+    <TabItem value="windows" label="Windows">
+    Download the [official PHP installer](https://www.php.net/downloads)
+    </TabItem>
+</Tabs>
+
 - **Composer** - Symfony uses [Composer](https://getcomposer.org/) to manage its dependencies. Composer is a dependency manager for PHP. You can download Composer from the [official Composer website](https://getcomposer.org/download/).
-```
-php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-php -r "if (hash_file('sha384', 'composer-setup.php') === 'edb40769019ccf227279e3bdd1f5b2e9950eb000c3233ee85148944e555d97be3ea4f40c3c2fe73b22f875385f6a5155') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
-php composer-setup.php
-php -r "unlink('composer-setup.php');"
-sudo mv composer.phar /usr/local/bin/composer
-```
+
+<Tabs>
+    <TabItem value="mac" label="Mac">
+    ```bash
+    brew install composer
+    ```
+    </TabItem>
+    <TabItem value="linux" label="Linux">
+    ```bash
+    sudo apt-get install composer
+    ```
+    </TabItem>
+    <TabItem value="windows" label="Windows">
+    Download the [official Composer installer](https://getcomposer.org/download/)
+    </TabItem>
+</Tabs>
+
 - **Symfony CLI** - Symfony provides a command-line tool called the Symfony CLI. It's a great way to create new Symfony applications, manage dependencies, and run your application. You can download the Symfony CLI from the [official Symfony website](https://symfony.com/download).
-```
-wget https://get.symfony.com/cli/installer -O - | bash
-```
+
+<Tabs>
+    <TabItem value="mac" label="Mac">
+    ```bash
+    curl -sS https://get.symfony.com/cli/installer | bash
+    ```
+    </TabItem>
+    <TabItem value="linux" label="Linux">
+    ```bash
+    wget https://get.symfony.com/cli/installer -O - | bash
+    ```
+    </TabItem>
+    <TabItem value="windows" label="Windows">
+    Download the [official Symfony CLI installer](https://symfony.com/download)
+    </TabItem>
+</Tabs>
 
 
 ## MongoDB Atlas cluster

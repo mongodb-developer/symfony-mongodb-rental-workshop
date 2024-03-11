@@ -1,3 +1,6 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # 🏁 Quick Start 
 
 Lets start building our application using Symfony and [MongoDB Doctrine ODM](https://www.doctrine-project.org/projects/mongodb-odm.html).
@@ -12,18 +15,41 @@ composer create-project symfony/skeleton rentals
 
 ## Install MongoDB Extension
 
-```shell
-cd rentals
-pecl install mongodb
-```
+
+<Tabs>
+    <TabItem value="Mac">
+    ```shell
+    cd rentals
+    pecl install mongodb
+    ``` 
+    </TabItem>
+    <TabItem value="Linux">
+    ```shell
+    cd rentals
+    sudo apt-get install php-pear
+    sudo pecl install mongodb
+    ```
+    </TabItem>
+    <TabItem value="Windows">
+    With Windows, users will need to fetch the DLL, as mentioned [here](https://www.php.net/manual/en/mongodb.setup.php) and add it to their PHP installation.
+   
+    ```shell
+    cd rentals
+    pecl install mongodb
+    ```
+    </TabItem>
+</Tabs>
+   
+
+
 
 Verify the `php.ini` file to point to the installed `mongodb.so`
 
 ## Install drivers
 
 ```shell
-composer require doctrine/mongodb-odm-bundle
 composer require mongodb/mongodb
+composer require doctrine/mongodb-odm-bundle
 ```
 
 ## Configure the MongoDB ODM
@@ -95,4 +121,4 @@ A project structure like this:
 │   ├── css
 │   │   └── styles.css
 ```
-The necessary dependencies to start building a web application using Symfony and MongoDB ODM.
+The necessary dependencies to start building a web application using Symfony and MongoDB ODM are now installed.

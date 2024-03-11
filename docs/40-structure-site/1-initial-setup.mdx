@@ -4,9 +4,9 @@ Lets start building our application building blocks:
 - `.env` file to store our environment variables
 - basic twig template
 - Document entities for :
-- - Rental
-- - Booking
-- - Availability 
+    - Rental
+    - Booking
+    - Availability 
 - Generate Data for the rentals collection
 
 
@@ -20,12 +20,15 @@ MONGODB_URL=<your atlas cluster URI>
 MONGODB_DB=symfony
 ```
 
-Replace `<your atlas cluster URI>` with the connection string for your MongoDB Atlas cluster. You can find this in the MongoDB Atlas UI by clicking "Connect" and then "Connect your application".
+Replace `<your atlas cluster URI>` with the [connection string](https://www.mongodb.com/docs/guides/atlas/connection-string/ ) for your MongoDB Atlas cluster. You can find this in the MongoDB Atlas UI by clicking "Connect" and then "Connect your application".
 
 
 
 
 ## Twig template
+
+Twig is a template engine for PHP. It is the default template engine for Symfony. We will use it to create the views for our application.
+It is similar to other rendering templates which dynamically generate HTML, CSS, and JavaScript.
 
 Create a base twig template in `templates/base.html.twig`:
 
@@ -381,9 +384,18 @@ class Availability
 Those classes expose the properties of the rental, booking and availability documents. The `Rental` class has a collection of `Availability` subdocuments, which represent the availability of the rental.
 The only methods here are getters and setters for each property. Those will be used by the MongoDB ODM to map the documents to the database.
 
-## Generate Data for the rentals collection
+## Generate Data for the rentals collection (Optional)
 
-We will use the [mongosh](https://www.mongodb.com/docs/mongodb-shell/install/) shell to insert some data into the rentals collection. We will also use the falso data generator to generate some random data for the rentals collection.
+1. Use Atlas data explorer to upload the following [rentals.json](https://raw.githubusercontent.com/mongodb-developer/symfony-mongodb-atlas-rentals/main/data/symfony.rentals.json) array into the "Insert Document" json array to upload initial rentals
+
+2. We can use the [mongosh](https://www.mongodb.com/docs/mongodb-shell/install/) shell to insert some data into the rentals collection. We will also use the falso data generator to generate some random data for the rentals collection.
+
+### Prerequisites 
+1. [Node.js](https://nodejs.org/en/download/)
+2. [npm](https://www.npmjs.com/get-npm)
+2. [MongoDB Shell](https://www.mongodb.com/docs/mongodb-shell/install/)
+3. [Falso](https://www.npmjs.com/package/@ngneat/falso)
+
 
 ```bash
 npm install @ngneat/falso

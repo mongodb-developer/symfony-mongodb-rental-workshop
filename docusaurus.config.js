@@ -11,7 +11,7 @@ const organizationName = "mongodb-developer";
 // Main page config
 const title = "Build PHP Symfony Apps with MongoDB Atlas";
 const tagLine = "A Workshop to guide you through building a PHP Symfony app for rental bookings which showcase MongoDB Atlas, MongoDB Doctrine and Symfony frameworks.";
-const startButtonTitle = "Enter Inception";
+const startButtonTitle = "🏁 Start Workshop";
 const favicon = "img/favicon.svg"
 
 // Main Page Features
@@ -55,27 +55,27 @@ const footerLinks = [
   },
   {
     label: "Forums",
-    href: `https://www.mongodb.com/community/forums/${utmParams}`,
+    href: `https://www.mongodb.com/community/forums?${utmParams}`,
   },
   {
     label: "Developer Center",
-    href: `https://www.mongodb.com/developer/${utmParams}`,
+    href: `https://www.mongodb.com/developer?${utmParams}`,
   },
   {
     label: "MongoDB University",
-    href: `https://learn.mongodb.com/${utmParams}`,
+    href: `https://learn.mongodb.com?${utmParams}`,
   },
   {
     href: `https://github.com/${organizationName}/${workshopName}`,
     label: "This lab in GitHub",
   },
   {
-    href: `https://github.com/${organizationName}/${workshopName}`,
+    href: `https://www.mongodb.com/docs/drivers/php-drivers/`,
     label: "PHP Driver",
   },
   {
     label: `© ${new Date().getFullYear()} MongoDB, Inc.`,
-    href: "#",
+    href: "https://www.mongodb.com",
   },
 ];
 
@@ -138,14 +138,6 @@ const config = {
           autoCollapseCategories: true,
           hideable: true,
         },
-      },
-      announcementBar: {
-        id: "feedback_form",
-        content:
-          'We are looking to revamp our docs, please fill <a target="_blank" rel="noopener noreferrer" href="#">this survey</a>',
-        backgroundColor: "#fafbfc",
-        textColor: "#091E42",
-        isCloseable: true,
       },
       navbar: {
         title: `${title}`,
