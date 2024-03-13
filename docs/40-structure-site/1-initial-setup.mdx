@@ -386,7 +386,7 @@ The only methods here are getters and setters for each property. Those will be u
 
 ## Generate Data for the rentals collection (Optional)
 
-1. Use Atlas data explorer to upload the following [rentals.json](https://raw.githubusercontent.com/mongodb-developer/symfony-mongodb-atlas-rentals/main/data/symfony.rentals.json) array into the "Insert Document" json array to upload initial rentals
+1. Use [Atlas data explorer](https://www.mongodb.com/docs/atlas/atlas-ui/documents/#insert-documents) to upload the following [rentals.json](https://raw.githubusercontent.com/mongodb-developer/symfony-mongodb-atlas-rentals/main/data/symfony.rentals.json) array into the "Insert Document" json array to upload initial rentals
 
 2. We can use the [mongosh](https://www.mongodb.com/docs/mongodb-shell/install/) shell to insert some data into the rentals collection. We will also use the falso data generator to generate some random data for the rentals collection.
 
@@ -407,6 +407,7 @@ Now we will run a script to generate some random data for the rentals collection
 ```javascript
 const falso = require('@ngneat/falso');
 
+// Switch to database named
 use symfony;
 
 const rentals = [];

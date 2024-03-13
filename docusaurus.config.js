@@ -59,7 +59,7 @@ const footerLinks = [
   },
   {
     label: "Developer Center",
-    href: `https://www.mongodb.com/developer?${utmParams}`,
+    href: `https://www.mongodb.com/developer/languages/php?${utmParams}`,
   },
   {
     label: "MongoDB University",
