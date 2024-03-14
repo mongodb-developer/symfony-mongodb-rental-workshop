@@ -22,6 +22,7 @@ composer create-project symfony/skeleton rentals
     cd rentals
     pecl install mongodb
     ``` 
+    Verify the `php.ini` file to point to the installed `mongodb.so`.
     </TabItem>
     <TabItem value="Linux">
     ```shell
@@ -29,17 +30,18 @@ composer create-project symfony/skeleton rentals
     sudo apt-get install php-pear
     sudo pecl install mongodb
     ```
+    Verify the `php.ini` file to point to the installed `mongodb.so`.
     </TabItem>
     <TabItem value="Windows">
     With Windows, users will need to fetch the DLL, as mentioned [here](https://www.php.net/manual/en/mongodb.setup.php) and add it to their PHP installation.
-   
+    Verify the `php.ini` file to point to the installed `mongodb.dll`
     </TabItem>
 </Tabs>
    
 
 
 
-Verify the `php.ini` file to point to the installed `mongodb.so`
+
 
 ## Install drivers
 
