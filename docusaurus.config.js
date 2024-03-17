@@ -92,7 +92,7 @@ const config = {
   title: `${title}`,
   tagline: `${tagLine}`,
   url: `https://${workshopName}.github.io`,
-  baseUrl: `/${organizationName}/`,
+  baseUrl: `/${workshopName}/`,
   projectName: `${organizationName}.github.io`,
   organizationName: `${organizationName}`,
   trailingSlash: false,
