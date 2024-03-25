@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunksymfony_mongodb_atlas_workshop=self.webpackChunksymfony_mongodb_atlas_workshop||[]).push([[621],{4061:s=>{s.exports=JSON.parse('{"name":"docusaurus-plugin-content-pages","id":"default"}')}}]);
