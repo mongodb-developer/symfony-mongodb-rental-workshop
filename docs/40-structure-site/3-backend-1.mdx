@@ -8,71 +8,98 @@ We will start by building the `RentalController.php`. This controller will be fi
 
 ```php
 <?php
+
+/**
+ * RentalController
+ * ---------------------
+ * 
+ * This class is responsible for handling the rental query and booking operations.
+ * 
+ * @category Controller
+ * @package  App\Controller
+ * @author   pavel.duchovny
+ * @license  apache-2.0
+ */
+
+declare(strict_types=1);
+
 namespace App\Controller;
+
+use App\Document\Booking;
+use App\Document\Rental;
+use App\Form\RentalType;
+use DateTime;
+use DateTimeImmutable;
+use Doctrine\ODM\MongoDB\DocumentManager;
+use MongoDB\BSON\Regex;
+use Psr\Log\LoggerInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-
-use App\Document\Rental;
-use App\Document\Booking;
-use App\Form\RentalType;
-use App\Document\Rental;
-use Doctrine\ODM\MongoDB\DocumentManager;
 use Symfony\Component\Routing\Annotation\Route;
-use MongoDB\BSON\Regex;
+/**
+ * RentalController
+ * ---------------------
+ * This class is responsible for handling the rental query and booking operations.
+ */
 
-use Psr\Log\LoggerInterface;
-
-/*
-    * RentalController
-    ---------------------
-    * This class is responsible for handling the rental query and booking operations.
-*/
 class RentalController extends AbstractController
 {
     // DocumentManager instance
-    private $documentManager;
-    private $logger;
-    // Constructor to initialize the DocumentManager and LoggerInterface
-    public function __construct(DocumentManager $documentManager , LoggerInterface $logger)
+    private $_documentManager;
+    private $_logger;
+    /**
+     * __construct -
+     * 
+     * This function is responsible for initializing the RentalController class.
+     * 
+     * @param DocumentManager $_documentManager - The document manager
+     * @param LoggerInterface $_logger          - The logger interface
+     * 
+     * @return void
+     */
+    public function __construct(DocumentManager $_documentManager, LoggerInterface $_logger)
     {
-        $this->documentManager = $documentManager;
-        $this->logger = $logger;
+        $this->_documentManager = $_documentManager;
+        $this->_logger          = $_logger;
     }
 
     // Index action to display all the rentals or filter by city and availability
+
     #[Route('/', name: 'rental_index', methods: ['GET'])]
     public function index(Request $request): Response
     {
         // Get the city, check-in and check-out dates from the query parameters
-        $city = $request->query->get('city');
-        $checkIn =  new \DateTime($request->query->get('check_in'));
-        $checkOut =  new \DateTime($request->query->get('check_out'));
+        $city     = $request->query->get('city');
+        $checkInInput = $request->query->get('check_in');
+        $checkOutInput = $request->query->get('check_out');
 
-
+        $checkIn = $checkInInput ? new DateTime($checkInInput) : null;
+        $checkOut = $checkOutInput ? new DateTime($checkOutInput) : null;
         // Fetch all the rentals
         if ($city && $checkIn && $checkOut) {
             // Fetch rentals based on city and availability
             // The availability field is an array of objects with start_date and end_date fields
             // So we use elemMatch to query the availability array and see if the user requested dates are available
-            $rentalRepository = $this->documentManager->getRepository(Rental::class);
+            $rentalRepository = $this->_documentManager->getRepository(Rental::class);
             $queryBuilder = $rentalRepository->createQueryBuilder();
 
-            
             $rentals = $queryBuilder
-                ->field('location')->equals(new Regex( $city , 'i'))
+                ->field('location')->equals(new Regex($city, 'i'))
                 ->field('availability')->elemMatch(
                     $queryBuilder->expr()
-                        ->field('start_date')->lte($checkIn)
-                        ->field('end_date')->gte($checkOut)
+                        ->field('startDate')->lte($checkIn)
+                        ->field('endDate')->gte($checkOut),
                 )
                 ->getQuery()
                 ->execute();
-
         } else {
             // Fetch all the rentals
-            $rentals = $this->documentManager->getRepository(Rental::class)->findAll();
+            $rentals = $this->_documentManager->getRepository(Rental::class)->findAll();
         }
+
         // Render the rentals page
+        
         return $this->render('rental/index.html.twig', ['rentals' => $rentals]);
     }
 
@@ -177,7 +204,6 @@ Now we can create the `rental/index.html.twig` file to render the rentals page.
         </div>
     </div>
 {% endblock %}
-
 ```
 
 ## Start the server

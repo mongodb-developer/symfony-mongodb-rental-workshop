@@ -23,50 +23,66 @@ The controller is located at `src/Controller/RentalController.php`. Lets add the
 
 ```php
 
-public function book(Request $request, $rentalId): Response
+ /**
+     * Book action to book a rental
+     * 
+     * @param Request $request - The request object
+     * @param string  $id      - The rental id
+     * 
+     * @return Response - The response object
+     */
+    #[Route('/rental/book/{rentalId}', name: 'rental_book', methods: ['POST'])]
+    public function book(Request $request, $rentalId): Response
     {
         // Fetch the rental by id
-        $rental = $this->documentManager->getRepository(Rental::class)->find($rentalId);
+        $rental = $this->_documentManager->getRepository(Rental::class)->find($rentalId);
 
         // If the rental is not found, throw a 404 exception
-        if (!$rental) {
-            throw $this->createNotFoundException('Rental not found');
+        if (! $rental) {
+            throw $this->createNotFoundException('rental not found');
         }
 
         // Get the start and end dates from the request
-        $startDate = new \DateTime($request->request->get('startDate'));
-        $endDate = new \DateTime($request->request->get('endDate'));
+
+        $startDateInput = $request->request->get('startDate');
+        $endDateInput = $request->request->get('endDate');
+
+        $startDate = $startDateInput ? new DateTime($startDateInput) : null;
+        $endDate = $endDateInput ? new DateTime($endDateInput) : null;
+
+
+
 
         // Calculate total price based on night cost and number of days
-        $interval = $startDate->diff($endDate);
-        $days = $interval->days;
-        $totalPrice = $days * $rental->getNightCost();
+        $interval   = $startDate->diff($endDate);
+        $days       = $interval->days;
+        $totalPrice = $days * $rental->nightCost;
 
         // Calculate new availability based on the booking dates
-        $newAvailability = $this->calcAvailabilitySlots($startDate, $endDate, $rental->getAvailability()->toArray());
+        $newAvailability = $rental->calcAvailabilitySlots($startDate, $endDate, $rental->availability->toArray());
 
         // Create and persist the booking
         $booking = new Booking();
-        $booking->setRentalId($rentalId);
-        $booking->setRentalName($rental->getName());
-        $booking->setStartDate($startDate);
-        $booking->setEndDate($endDate);
-        $booking->setTotalCost($totalPrice);
-        $rental->setAvailability($newAvailability);
+        $booking->rental = $rental;
+        $booking->rentalName = $rental->name;
+        $booking->startDate =  DateTimeImmutable::createFromMutable($startDate);
+        $booking->endDate =  DateTimeImmutable::createFromMutable($endDate);
+        $booking->totalCost = (int)$totalPrice;
+        $rental->availability = $newAvailability;
 
         // Persist the booking and rental
-        $this->documentManager->persist($booking);
-        $this->documentManager->persist($rental);
-        $this->documentManager->flush();
-
-        
+        $this->_documentManager->persist($booking);
+        $this->_documentManager->persist($rental);
+        $this->_documentManager->flush();
 
         // Redirect to a confirmation page or show confirmation message
-        return $this->render('rental/confirmation.html.twig', [
+        return $this->render(
+            'rental/confirmation.html.twig', [
             'rental' => $rental,
             'booking' => $booking,
-            'totalPrice' => $totalPrice
-        ]);
+            'totalPrice' => $totalPrice,
+            ]
+        );
     }
 ```
 
@@ -103,114 +119,87 @@ The availability slots are diverged into 3 slots:
 - 2024-01-05 until 2024-01-10
 - 2025-01-21 until 2025-01-01
 
-Lets add the helper function to the controller: `src/Controller/RentalController.php`:
+Lets add the helper function to the controller: `src/Document/Rental.php`:
 
 ```php
- private function calcAvailabilitySlots(\DateTime $bookingStart, \DateTime $bookingEnd, array $availability): ArrayCollection {
+  /**
+     * Function : calcAvailabilitySlots 
+     * 
+     * This function is responsible for calculating the 
+     * availability slots based on the booking start and end dates.
+     * 
+     * @param DateTime $bookingStart - The booking start date
+     * @param DateTime $bookingEnd   - The booking end date
+     * @param array    $availability - The availability array
+     * 
+     * @return ArrayCollection - The new availability slots
+     */
+    public function calcAvailabilitySlots(DateTime $bookingStart, 
+        DateTime $bookingEnd, 
+        array $availability
+    ): ArrayCollection {
         // Create a new ArrayCollection to store the new availability
         $newAvailability = new ArrayCollection();
-        
+
         // Loop through each period in the availability to calculate the new availability
         foreach ($availability as $period) {
-            $periodStart = $period->getStartDate();
-            $periodEnd = $period->getEndDate();
-    
+            $periodStart = $period->startDate;
+            $periodEnd = $period->endDate;
+
             // Booking is entirely before this period
             if ($bookingEnd < $periodStart) {
                 $newAvailability->add($period);
                 continue;
             }
-    
+
             // Booking is entirely after this period
             if ($bookingStart > $periodEnd) {
                 $newAvailability->add($period);
                 continue;
             }
-    
+
             // Booking starts before the period and ends within it
             if ($bookingStart <= $periodStart && $bookingEnd < $periodEnd) {
                 $newPeriod = new Availability();
-                $newPeriod->setStartDate($bookingEnd->modify('+1 day'));
-                $newPeriod->setEndDate($periodEnd);
+                $newPeriod->startDate = $bookingEnd->modify('+1 day');
+                $newPeriod->endDate = $periodEnd;
                 $newAvailability->add($newPeriod);
                 continue;
             }
-    
+
             // Booking starts during the period and ends after it
             if ($bookingStart > $periodStart && $bookingEnd >= $periodEnd) {
                 $newPeriod = new Availability();
-                $newPeriod->setStartDate($periodStart);
-                $newPeriod->setEndDate($bookingStart->modify('-1 day'));
+                $newPeriod->startDate= $periodStart;
+                $newPeriod->endDate = $bookingStart->modify('-1 day');
                 $newAvailability->add($newPeriod);
                 continue;
             }
-    
+
             // Booking is entirely within the period
             if ($bookingStart > $periodStart && $bookingEnd < $periodEnd) {
                 $newPeriod1 = new Availability();
-                $newPeriod1->setStartDate($periodStart);
-                $newPeriod1->setEndDate($bookingStart->modify('-1 day'));
+                $newPeriod1->startDate = $periodStart;
+                $newPeriod1->endDate = $bookingStart->modify('-1 day');
                 $newAvailability->add($newPeriod1);
-    
+
                 $newPeriod2 = new Availability();
-                $newPeriod2->setStartDate($bookingEnd->modify('+1 day'));
-                $newPeriod2->setEndDate($periodEnd);
+                $newPeriod2->startDate = $bookingEnd->modify('+1 day');
+                $newPeriod2->endDate = $periodEnd;
                 $newAvailability->add($newPeriod2);
                 continue;
             }
-    
+
             // Booking covers the entire period
             // Do not add the period to newAvailability (effectively removing it)
         }
-    
+
         return $newAvailability;
     }
 ```
 
 - Create and persist the booking
 - Persist the booking and rental
-
-To persist the booking we will create a form type `BookingType.php` under `src/Form`:
-
-```php
-<?php
-namespace App\Form;
-
-use App\Document\Booking;
-use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Form\Extension\Core\Type\TextType;
-use Symfony\Component\Form\Extension\Core\Type\NumberType;
-
-/*
-    * BookingType
-    ---------------------
-    * This class is responsible for creating the form for the booking entity.
-*/
-class BookingType extends AbstractType
-{
-    public function buildForm(FormBuilderInterface $builder, array $options)
-    {
-        $builder
-            ->add('rentalId', TextType::class)
-            ->add('rentalName', TextType::class)
-            ->add('totalCost', NumberType::class)
-            ->add('startDate', NumberType::class)
-            ->add('endDate', NumberType::class);
-            // Add other fields as needed
-    }
-
-    public function configureOptions(OptionsResolver $resolver)
-    {
-        $resolver->setDefaults([
-            'data_class' => Booking::class,
-        ]);
-    }
-}
-```
-
-This form will use the form submitted fields and map them to the `Booking` entity for persisting.
 
 Finally, the function redirects to a confirmation page or shows a confirmation message.
 
@@ -219,7 +208,7 @@ Finally, the function redirects to a confirmation page or shows a confirmation m
 The confirmation page is located at `templates/rental/confirmation.html.twig`. This page shows the booking details and the total price.
 
 
-```twig
+```html
 {# templates/rental/confirmation.html.twig #}
 
 {% extends 'base.html.twig' %}

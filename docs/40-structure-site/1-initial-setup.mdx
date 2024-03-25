@@ -37,10 +37,10 @@ Create a base twig template in `templates/base.html.twig`:
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}MongoDB Rental Finder!{% endblock %}</title>
+    <title>{% block title %}MongoDB Private Home aPartments Finder!{% endblock %}</title>
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-     <link rel="icon" type="image/x-icon" href="/public/favicon.png">
+     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.png') }}">
      <link href="{{ asset('css/styles.css') }}" rel="stylesheet">
       <link href="https://use.fontawesome.com/releases/v5.15.3/css/all.css" rel="stylesheet">
     {% block head %}{% endblock %}
@@ -101,6 +101,9 @@ Add the following CSS to `public/css/styles.css`:
 }
 ```
 
+Additionally, add the public images to the `public` directory:
+- https://github.com/mongodb-developer/symfony-mongodb-atlas-rentals/tree/main/public
+
 ## Document entities
 
 In `src/Document`, create the following document classes:
@@ -109,16 +112,27 @@ In `src/Document`, create the following document classes:
 
 ```php
 <?php
+/**
+ * Rental
+ * ---------------------
+ * This class is responsible for defining the rental document and its properties.
+ *
+ * @category Document
+ * @package  App\Document
+ * @author   pavel.duchovny 
+ * @license  apache-2.0
+ */
+
+declare(strict_types=1);
+
 namespace App\Document;
 
-use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
+use DateTime;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
-use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
-use Doctrine\ODM\MongoDB\Types\Type;
-use App\Document\Availability;
+use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
 use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
-use MongoDB\BSON\ObjectId;
+use Doctrine\ODM\MongoDB\Types\Type;
 
 /*
     * Rental
@@ -126,81 +140,117 @@ use MongoDB\BSON\ObjectId;
     * This class is responsible for defining the rental document and its properties.
 */
 #[
-    MongoDB\Document(collection: "rentals")
+    MongoDB\Document(collection: 'rentals')
 ]
+
 class Rental
 {
     #[ODM\Id]
-    protected $id;
+    public  $id;
 
     #[ODM\Field(type: Type::STRING)]
-    protected $name;
+    public string $name;
 
     #[ODM\Field(type: Type::STRING)]
-    protected $location;
+    public string $location;
 
     #[ODM\Field(type: Type::INT)]
-    protected $night_cost;
+    public int $nightCost;
 
     #[ODM\EmbedMany(targetDocument: Availability::class)]
-    protected Collection $availability;
+    public Collection $availability;
 
-    public function __construct(){
+    /**
+     * __construct - 
+     * This function is responsible for initializing the Rental class.
+     * 
+     * @return void
+     */
+    public function __construct()
+    {
         $this->availability = new ArrayCollection();
 
         // Create an instance of Availability and add it to the collection
         $initialAvailability = new Availability();
-        $initialAvailability->setStartDate(new \DateTime('2024-01-01'));
-        $initialAvailability->setEndDate(new \DateTime('2026-01-01'));
+        $initialAvailability->startDate =  new DateTime('2024-01-01');
+        $initialAvailability->endDate = new DateTime('2026-01-01');
         $this->availability->add($initialAvailability);
     }
-    // Add getters and setters for each property
-    public function getId(): ?string
-    {
-        return $this->id;
-    }
 
-    public function getName(): ?string
-    {
-        return $this->name;
-    }
+   
+    /**
+     * Function : calcAvailabilitySlots 
+     * 
+     * This function is responsible for calculating the 
+     * availability slots based on the booking start and end dates.
+     * 
+     * @param DateTime $bookingStart - The booking start date
+     * @param DateTime $bookingEnd   - The booking end date
+     * @param array    $availability - The availability array
+     * 
+     * @return ArrayCollection - The new availability slots
+     */
+    public function calcAvailabilitySlots(DateTime $bookingStart, 
+        DateTime $bookingEnd, 
+        array $availability
+    ): ArrayCollection {
+        // Create a new ArrayCollection to store the new availability
+        $newAvailability = new ArrayCollection();
 
-    public function setName(string $name): self
-    {
-        $this->name = $name;
-        return $this;
-    }
+        // Loop through each period in the availability to calculate the new availability
+        foreach ($availability as $period) {
+            $periodStart = $period->startDate;
+            $periodEnd = $period->endDate;
 
+            // Booking is entirely before this period
+            if ($bookingEnd < $periodStart) {
+                $newAvailability->add($period);
+                continue;
+            }
 
-    public function getNightCost(): ?float
-    {
-        return $this->night_cost;
-    }
+            // Booking is entirely after this period
+            if ($bookingStart > $periodEnd) {
+                $newAvailability->add($period);
+                continue;
+            }
 
-    public function setNightCost(float $night_cost): self
-    {
-        $this->night_cost = $night_cost;
-        return $this;
-    }
-    public function getLocation(): ?string
-    {
-        return $this->location;
-    }
+            // Booking starts before the period and ends within it
+            if ($bookingStart <= $periodStart && $bookingEnd < $periodEnd) {
+                $newPeriod = new Availability();
+                $newPeriod->startDate = $bookingEnd->modify('+1 day');
+                $newPeriod->endDate = $periodEnd;
+                $newAvailability->add($newPeriod);
+                continue;
+            }
 
-    public function setLocation(string $location): self
-    {
-        $this->location = $location;
-        return $this;
-    }
+            // Booking starts during the period and ends after it
+            if ($bookingStart > $periodStart && $bookingEnd >= $periodEnd) {
+                $newPeriod = new Availability();
+                $newPeriod->startDate= $periodStart;
+                $newPeriod->endDate = $bookingStart->modify('-1 day');
+                $newAvailability->add($newPeriod);
+                continue;
+            }
 
-    public function getAvailability(): Collection
-    {
-        return $this->availability;
-    }
+            // Booking is entirely within the period
+            if ($bookingStart > $periodStart && $bookingEnd < $periodEnd) {
+                $newPeriod1 = new Availability();
+                $newPeriod1->startDate = $periodStart;
+                $newPeriod1->endDate = $bookingStart->modify('-1 day');
+                $newAvailability->add($newPeriod1);
 
-    public function setAvailability(Collection $availability): void
-    {
-        $this->availability = $availability;
+                $newPeriod2 = new Availability();
+                $newPeriod2->startDate = $bookingEnd->modify('+1 day');
+                $newPeriod2->endDate = $periodEnd;
+                $newAvailability->add($newPeriod2);
+                continue;
+            }
+
+            // Booking covers the entire period
+            // Do not add the period to newAvailability (effectively removing it)
+        }
+
+        return $newAvailability;
     }
 }
 ```
@@ -209,135 +259,86 @@ class Rental
 
 ```php
 <?php
+/**
+ * Booking
+ * ---------------------
+ * This class is responsible for defining the booking document and its properties.
+ *
+ * @category Document
+ * @package  App\Document
+ * @author   pavel.duchovny 
+ * @license  apache-2.0
+ */
+
+declare(strict_types=1);
+
 namespace App\Document;
 
+use DateTime;
+use DateTimeImmutable;
 use Doctrine\ODM\MongoDB\Mapping\Annotations as MongoDB;
-use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
-use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
-use Doctrine\ODM\MongoDB\Types\Type;
 use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
-use MongoDB\BSON\ObjectId;
+use Doctrine\ODM\MongoDB\Types\Type;
 
-/*  
+/*
     * Booking
     ---------------------
     * This class is responsible for defining the booking document and its properties.
 */
 #[
-    MongoDB\Document(collection: "bookings")
+    MongoDB\Document(collection: 'bookings')
 ]
 class Booking
 {
     #[ODM\Id]
-    protected $id;
+    public  $id;
+
+    #[ODM\ReferenceOne(targetDocument: Rental::class)]
+    public Rental $rental;
 
     #[ODM\Field(type: Type::STRING)]
-    protected $rental_id;
+    public string $rentalName;
 
     #[ODM\Field(type: Type::STRING)]
-    protected $rental_name;
-
-    #[ODM\Field(type: Type::STRING)]
-    protected $location;
+    public string $location;
 
     #[ODM\Field(type: Type::INT)]
-    protected $total_cost;
+    public int $totalCost;
 
     #[ODM\Field(type: Type::DATE_IMMUTABLE)]
-    protected $start_date;
+    public DateTimeImmutable $startDate;
 
     #[ODM\Field(type: Type::DATE_IMMUTABLE)]
-    protected $end_date;
+    public DateTimeImmutable $endDate;
 
     // Add getters and setters for each property
-    public function getId(): ?string
-    {
-        return $this->id;
-    }
-
-
-    public function getRentalId(): ?string
-    {
-        return $this->rental_id;
-    }
-
-    public function setRentalId(string $rental_id): self
-    {
-        $this->rental_id = $rental_id;
-        return $this;
-    }
-
-    public function getRentalName(): ?string
-    {
-        return $this->rental_name;
-    }
-
-    public function setRentalName(?string $rental_name): self
-    {
-        $this->rental_name = $rental_name;
-        return $this;
-    }
-
-    public function getLocation(): ?string
-    {
-        return $this->location;
-    }
-
-    public function setLocation(string $location): self
-    {
-        $this->location = $location;
-        return $this;
-    }
-
-    public function getTotalCost()
-    {
-        return $this->total_cost;
-    }
-
-    public function setTotalCost(?int $total_cost): self
-    {
-        $this->total_cost = $total_cost;
-        return $this;
-    }
-
-    public function getStartDate(): \DateTimeImmutable
-    {
-        return $this->start_date;
-    }
-
-    public function setStartDate(\DateTime $start_date): void
-    {
-
-        if ($start_date instanceof \DateTime) {
-            $start_date = \DateTimeImmutable::createFromMutable($start_date);
-        }
-        $this->start_date = $start_date;
-    }
-
-    public function getEndDate(): \DateTimeImmutable
-    {
-        return $this->end_date;
-    }
-
-    public function setEndDate(\DateTime $end_date): void
-    {
-        if ($end_date instanceof \DateTime) {
-            $end_date = \DateTimeImmutable::createFromMutable($end_date);
-        }
-        $this->end_date = $end_date;
-    }
-
-
+   
 }
 ```
+
+Booking class exposes the properties of the booking document. It has a reference to the rental document, which is used to store the rental details for the booking. 
 
 ### `Availability.php`
 
 ```php
 <?php
+/**
+ * Availability
+ * 
+ * This class is responsible for defining the availability 
+ * sub document and its properties.
+ * 
+ * @category Document
+ * @package  App\Document
+ * @author   pavel.duchovny
+ * @license  apache-2.0
+ */
+
+declare(strict_types=1);
+
 namespace App\Document;
 
+use DateTime;
 use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
 use Doctrine\ODM\MongoDB\Types\Type;
 /*
@@ -345,39 +346,19 @@ use Doctrine\ODM\MongoDB\Types\Type;
     ---------------------
     * This class is responsible for defining the availability sub document and its properties.
 */
+
 #[
     ODM\EmbeddedDocument
 ]
 class Availability
 {
     #[ODM\Field(type: Type::DATE)]
-    protected $start_date;
+    public DateTime $startDate;
 
     #[ODM\Field(type: Type::DATE)]
-    protected $end_date;
+    public DateTime $endDate;
 
-    public function getStartDate(): ?\DateTime
-    {
-        return $this->start_date;
-    }
-
-    public function setStartDate(\DateTime $start_date): self
-    {
-        $this->start_date = $start_date;
-        return $this;
-    }
-
-    public function getEndDate(): ?\DateTime
-    {
-        return $this->end_date;
-    }
-
-    public function setEndDate(\DateTime $end_date): self
-    {
-        $this->end_date = $end_date;
-        return $this;
-    }
-
+   
 }
 ```
 
