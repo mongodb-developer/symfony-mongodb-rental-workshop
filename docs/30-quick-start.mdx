@@ -52,7 +52,7 @@ composer require doctrine/mongodb-odm-bundle
 
 ## Configure the MongoDB ODM
 
-Edit the file `config/packages/doctrine_mongodb.yaml` and add the following content:
+Add and edit the file `config/packages/doctrine_mongodb.yaml` and add the following content:
 
 ```yaml
 # config/packages/doctrine_mongodb.yaml
@@ -61,7 +61,7 @@ doctrine_mongodb:
     auto_generate_hydrator_classes: true
     connections:
         default:
-            server: '%env(resolve:MONGODB_URL)%'
+            server: '%env(resolve:MONGODB_URL)%&appName=devrel.content.php'
             options: {}
     default_database: '%env(resolve:MONGODB_DB)%'
     document_managers:
@@ -97,6 +97,8 @@ composer require symfony/twig-bundle
 composer require symfony/asset
 ```
 
+Manually enable the bundle by adding the following line in the `config/bundles.php` file of your project, as mentioned in the [documentation](https://www.doctrine-project.org/projects/doctrine-mongodb-bundle/en/5.0/installation.html).
+
 ## By the end of this page you will have
 
 A project structure like this:
@@ -107,16 +109,14 @@ A project structure like this:
 ├── symfony.lock
 ├── src
 │   ├── Controller
-│   ├── Document
 ├── config
 │   ├── packages
 │   │   ├── doctrine_mongodb.yaml
 │   │   ├── framework.yaml
 │   │   ├── twig.yaml
 │   │   └── routing.yaml
+|   ├── bundles.php
 ├── public
 │   ├── index.php
-│   ├── css
-│   │   └── styles.css
 ```
 The necessary dependencies to start building a web application using Symfony and MongoDB ODM are now installed.
