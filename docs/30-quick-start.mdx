@@ -50,6 +50,11 @@ composer require mongodb/mongodb
 composer require doctrine/mongodb-odm-bundle
 ```
 
+
+Manually enable the bundle by adding the following line in the `config/bundles.php` file of your project, as mentioned in the [documentation](https://www.doctrine-project.org/projects/doctrine-mongodb-bundle/en/5.0/installation.html).
+
+Create a `src/Document` directory for the entities defined in the next sections.
+
 ## Configure the MongoDB ODM
 
 Add and edit the file `config/packages/doctrine_mongodb.yaml` and add the following content:
@@ -97,7 +102,6 @@ composer require symfony/twig-bundle
 composer require symfony/asset
 ```
 
-Manually enable the bundle by adding the following line in the `config/bundles.php` file of your project, as mentioned in the [documentation](https://www.doctrine-project.org/projects/doctrine-mongodb-bundle/en/5.0/installation.html).
 
 ## By the end of this page you will have
 
@@ -109,6 +113,7 @@ A project structure like this:
 ├── symfony.lock
 ├── src
 │   ├── Controller
+│   ├── Document
 ├── config
 │   ├── packages
 │   │   ├── doctrine_mongodb.yaml
