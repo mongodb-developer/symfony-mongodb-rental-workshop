@@ -74,6 +74,10 @@ const footerLinks = [
     label: "PHP Driver",
   },
   {
+    href: `https://www.mongodb.com/docs/drivers/php-frameworks/symfony/`,
+    label: "MongoDB and Symfony integration",
+  },
+  {
     label: `© ${new Date().getFullYear()} MongoDB, Inc.`,
     href: "https://www.mongodb.com",
   },
