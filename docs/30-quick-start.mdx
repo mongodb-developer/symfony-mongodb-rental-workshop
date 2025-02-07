@@ -20,6 +20,13 @@ composer create-project symfony/skeleton rentals
     <TabItem value="Mac">
     ```shell
     cd rentals
+    ## Compile the PHP code on MacOS using openssl
+    brew install openssl
+    export OPENSSL_DIR=$(brew --prefix openssl)
+    export LDFLAGS="-L$OPENSSL_DIR/lib"
+    export CPPFLAGS="-I$OPENSSL_DIR/include"
+    export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig"
+
     pecl install mongodb
     ``` 
     Verify the `php.ini` file to point to the installed `mongodb.so`.
@@ -66,7 +73,7 @@ doctrine_mongodb:
     auto_generate_hydrator_classes: true
     connections:
         default:
-            server: '%env(resolve:MONGODB_URL)%&appName=devrel.content.php'
+            server: '%env(resolve:MONGODB_URL)%'
             options: {}
     default_database: '%env(resolve:MONGODB_DB)%'
     document_managers:
