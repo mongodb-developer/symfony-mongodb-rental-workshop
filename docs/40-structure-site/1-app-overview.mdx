@@ -63,7 +63,7 @@ The document above represents a rental listing. It has a name, location, night_c
   "_id": {
     "$oid": "65dca21600a610ba8536b343"
   },
-  "rental": "65dca21600a610ba8536b343",
+  "rental": {"$ref":"rentals","$id":{"$oid":"65dca21600a610ba8536b343"}},
   "rentalName": "Fahey, Leannon and Gleichner",
   "nightCost": 415,
   "totalCost": 1245,
