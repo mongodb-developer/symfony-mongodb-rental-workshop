@@ -18,15 +18,15 @@ composer create-project symfony/skeleton rentals
 
 <Tabs>
     <TabItem value="Mac">
+    With MacOS, users will need to make sure to install pkgconf from homebrew as mentioned [here](https://formulae.brew.sh/formula/pkgconf) using the command 
+    
+    ```shell
+    brew install pkgconf
+    ```
+    Once installed, you can start with mongodb driver installation for PHP
+
     ```shell
     cd rentals
-    ## Compile the PHP code on MacOS using openssl
-    brew install openssl
-    export OPENSSL_DIR=$(brew --prefix openssl)
-    export LDFLAGS="-L$OPENSSL_DIR/lib"
-    export CPPFLAGS="-I$OPENSSL_DIR/include"
-    export PKG_CONFIG_PATH="$OPENSSL_DIR/lib/pkgconfig"
-
     pecl install mongodb
     ``` 
     Verify the `php.ini` file to point to the installed `mongodb.so`.
