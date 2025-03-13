@@ -18,11 +18,19 @@ composer create-project symfony/skeleton rentals
 
 <Tabs>
     <TabItem value="Mac">
-    With MacOS, users will need to make sure to install pkg-config from Homebrew as mentioned [Homebrew documentations](https://formulae.brew.sh/formula/pkgconf) using the command  
+
+    With MacOS, ensure that OpenSSL is installed on your system. You can install it using Homebrew with the following command:
+
+    ```shell
+    brew install openssl
+    ```
+
+    Next, install pkgconf using Homebrew, as mentioned in the [Homebrew documentation](https://formulae.brew.sh/formula/pkgconf):    
     
     ```shell
     brew install pkgconf
     ```
+
     Once installed, you can start with mongodb driver installation for PHP
 
     ```shell
